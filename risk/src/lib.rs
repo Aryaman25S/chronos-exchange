@@ -5,8 +5,13 @@ use serde::{Serialize, Deserialize};
 use std::collections::HashMap;
 use uuid::Uuid;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Caps { pub max_position: i64, pub max_notional_cents: i64, pub rate_per_sec: u32, pub burst: u32 }
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct Caps {
+    pub max_position: i64,
+    pub max_notional_cents: i64,
+    pub rate_per_sec: u32,
+    pub burst: u32,
+}
 
 #[derive(Default)]
 pub struct Risk {
@@ -19,7 +24,7 @@ pub struct Risk {
 impl Risk {
     pub fn new(caps: Caps) -> Self { Self { caps, positions: Default::default(), bucket: Default::default(), idempo: Default::default() } }
     pub fn check_rate_limit(&self, user: Uuid) -> Result<()> {
-        let now = (std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs());
+        let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs();
         let mut g = self.bucket.lock();
         let (mut last, mut tokens) = g.get(&user).cloned().unwrap_or((now, self.caps.burst));
         let elapsed = now.saturating_sub(last); tokens = std::cmp::min(self.caps.burst, tokens + (elapsed as u32) * self.caps.rate_per_sec);
