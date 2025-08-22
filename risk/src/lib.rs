@@ -26,7 +26,7 @@ impl Risk {
     pub fn check_rate_limit(&self, user: Uuid) -> Result<()> {
         let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs();
         let mut g = self.bucket.lock();
-        let (mut last, mut tokens) = g.get(&user).cloned().unwrap_or((now, self.caps.burst));
+        let (last, mut tokens) = g.get(&user).cloned().unwrap_or((now, self.caps.burst));
         let elapsed = now.saturating_sub(last); tokens = std::cmp::min(self.caps.burst, tokens + (elapsed as u32) * self.caps.rate_per_sec);
         if tokens == 0 { anyhow::bail!("rate limit exceeded"); } tokens -= 1; g.insert(user, (now, tokens)); Ok(())
     }

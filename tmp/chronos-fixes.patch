@@ -1,0 +1,176 @@
+diff --git a/engine/src/types.rs b/engine/src/types.rs
+--- a/engine/src/types.rs
++++ b/engine/src/types.rs
+@@ -1,7 +1,6 @@
+-use serde::{Serialize, Deserialize};
+-use uuid::Uuid;
+-use std::collections::VecDeque;
++use serde::{Serialize, Deserialize};
++use uuid::Uuid;
+ 
+ pub type MarketId = String;
+ pub type OrderId = Uuid;
+@@
+-#[derive(Debug, Clone)]
++#[derive(Debug, Clone, Serialize, Deserialize)]
+ pub struct Order { pub id: OrderId, pub user_id: UserId, pub price: u32, pub qty: u32, pub ts: u64 }
+diff --git a/engine/src/orderbook.rs b/engine/src/orderbook.rs
+--- a/engine/src/orderbook.rs
++++ b/engine/src/orderbook.rs
+@@ -25,23 +25,52 @@ impl OrderBook {
+     pub fn place(&mut self, o: NewOrder) -> Result<Vec<Fill>> {
+         if self.state.settled.is_some() { return Ok(vec![]); }
+         let mut incoming = Order::from(&o);
+         let mut fills = vec![];
+-        let cross = || match o.side {
+-            Side::Buy => self.best_ask().map(|a| incoming.price >= a).unwrap_or(false),
+-            Side::Sell => self.best_bid().map(|b| incoming.price <= b).unwrap_or(false),
+-        };
+-        while incoming.qty > 0 && cross() {
++        // Recompute crossing each iteration to avoid capturing &self in a closure.
++        while incoming.qty > 0 {
++            let is_cross = match o.side {
++                Side::Buy => self.best_ask().map(|a| incoming.price >= a).unwrap_or(false),
++                Side::Sell => self.best_bid().map(|b| incoming.price <= b).unwrap_or(false),
++            };
++            if !is_cross { break; }
+             match o.side {
+                 Side::Buy => {
+-                    let best_ask = self.best_ask().unwrap();
+-                    let q = self.state.asks.get_mut(&best_ask).unwrap();
+-                    if let Some(maker) = q.front_mut() {
+-                        if maker.user_id == incoming.user_id { incoming.qty = 0; break; }
+-                        let traded = maker.qty.min(incoming.qty);
+-                        maker.qty -= traded; incoming.qty -= traded;
+-                        self.state.last_trade = Some(best_ask); self.state.seq += 1;
+-                        fills.push(Fill{ market_id:o.market_id.clone(), taker_order_id:o.id, maker_order_id:maker.id, price:best_ask, qty:traded, buyer:incoming.user_id, seller:maker.user_id });
+-                        if maker.qty == 0 { q.pop_front(); } if q.is_empty() { self.state.asks.remove(&best_ask); }
+-                    }
++                    let best_ask = self.best_ask().unwrap();
++                    // Work inside a block so the mutable borrow drops before updating other fields.
++                    let mut pending: Option<(OrderId, UserId, u32, u32)> = None; // (maker_id, maker_user, qty, px)
++                    {
++                        let q = self.state.asks.get_mut(&best_ask).unwrap();
++                        if let Some(maker) = q.front_mut() {
++                            if maker.user_id == incoming.user_id { incoming.qty = 0; break; } // STP
++                            let traded = maker.qty.min(incoming.qty);
++                            maker.qty -= traded;
++                            incoming.qty -= traded;
++                            let maker_id = maker.id;
++                            let maker_user = maker.user_id;
++                            if maker.qty == 0 { q.pop_front(); }
++                            pending = Some((maker_id, maker_user, traded, best_ask));
++                        } else { break; }
++                        if q.is_empty() { self.state.asks.remove(&best_ask); }
++                    }
++                    if let Some((maker_id, maker_user, traded_qty, px)) = pending {
++                        self.state.last_trade = Some(px);
++                        self.state.seq += 1;
++                        fills.push(Fill{ market_id:o.market_id.clone(), taker_order_id:o.id, maker_order_id:maker_id, price:px, qty:traded_qty, buyer:incoming.user_id, seller:maker_user });
++                    }
+                 }
+                 Side::Sell => {
+-                    let best_bid = self.best_bid().unwrap();
+-                    let q = self.state.bids.get_mut(&best_bid).unwrap();
+-                    if let Some(maker) = q.front_mut() {
+-                        if maker.user_id == incoming.user_id { incoming.qty = 0; break; }
+-                        let traded = maker.qty.min(incoming.qty);
+-                        maker.qty -= traded; incoming.qty -= traded;
+-                        self.state.last_trade = Some(best_bid); self.state.seq += 1;
+-                        fills.push(Fill{ market_id:o.market_id.clone(), taker_order_id:o.id, maker_order_id:maker.id, price:best_bid, qty:traded, buyer:maker.user_id, seller:incoming.user_id });
+-                        if maker.qty == 0 { q.pop_front(); } if q.is_empty() { self.state.bids.remove(&best_bid); }
+-                    }
++                    let best_bid = self.best_bid().unwrap();
++                    let mut pending: Option<(OrderId, UserId, u32, u32)> = None;
++                    {
++                        let q = self.state.bids.get_mut(&best_bid).unwrap();
++                        if let Some(maker) = q.front_mut() {
++                            if maker.user_id == incoming.user_id { incoming.qty = 0; break; }
++                            let traded = maker.qty.min(incoming.qty);
++                            maker.qty -= traded;
++                            incoming.qty -= traded;
++                            let maker_id = maker.id;
++                            let maker_user = maker.user_id;
++                            if maker.qty == 0 { q.pop_front(); }
++                            pending = Some((maker_id, maker_user, traded, best_bid));
++                        } else { break; }
++                        if q.is_empty() { self.state.bids.remove(&best_bid); }
++                    }
++                    if let Some((maker_id, maker_user, traded_qty, px)) = pending {
++                        self.state.last_trade = Some(px);
++                        self.state.seq += 1;
++                        fills.push(Fill{ market_id:o.market_id.clone(), taker_order_id:o.id, maker_order_id:maker_id, price:px, qty:traded_qty, buyer:maker_user, seller:incoming.user_id });
++                    }
+                 }
+             }
+         }
+diff --git a/engine/src/lib.rs b/engine/src/lib.rs
+--- a/engine/src/lib.rs
++++ b/engine/src/lib.rs
+@@ -8,6 +8,7 @@ use orderbook::OrderBook;
+ use wal::{Wal, WalRecord};
+ use snapshot::Snapshotter;
++use tracing::info;
+ 
+ #[derive(Clone)]
+ pub struct Engine { pub(crate) inner: Arc<Mutex<Inner>> }
+@@ -21,17 +22,28 @@ impl Engine {
+     pub fn ensure_market(&self, market: Market) { let mut g = self.inner.lock(); g.markets.entry(market.id.clone()).or_insert_with(|| OrderBook::new(market)); }
+     pub fn place_order(&self, o: NewOrder) -> anyhow::Result<Vec<Fill>> {
+-        let mut g = self.inner.lock(); let book = g.markets.get_mut(&o.market_id).ok_or_else(|| anyhow::anyhow!("unknown market"))?;
+-        g.wal.append(&WalRecord::Place(o.clone()))?; let fills = book.place(o.clone())?; Ok(fills)
++        let mut g = self.inner.lock();
++        // WAL first, then borrow the book mutably
++        g.wal.append(&WalRecord::Place(o.clone()))?;
++        let fills = {
++            let book = g.markets.get_mut(&o.market_id).ok_or_else(|| anyhow::anyhow!("unknown market"))?;
++            book.place(o.clone())?
++        };
++        Ok(fills)
+     }
+     pub fn cancel_order(&self, market_id: MarketId, order_id: OrderId) -> anyhow::Result<()> {
+-        let mut g = self.inner.lock(); let book = g.markets.get_mut(&market_id).ok_or_else(|| anyhow::anyhow!("unknown market"))?;
+-        g.wal.append(&WalRecord::Cancel { market_id: market_id.clone(), order_id })?; book.cancel(order_id)
++        let mut g = self.inner.lock();
++        g.wal.append(&WalRecord::Cancel { market_id: market_id.clone(), order_id })?;
++        {
++            let book = g.markets.get_mut(&market_id).ok_or_else(|| anyhow::anyhow!("unknown market"))?;
++            book.cancel(order_id)?;
++        }
++        Ok(())
+     }
+     pub fn replace_order(&self, r: ReplaceOrder) -> anyhow::Result<()> {
+-        let mut g = self.inner.lock(); let book = g.markets.get_mut(&r.market_id).ok_or_else(|| anyhow::anyhow!("unknown market"))?;
+-        g.wal.append(&WalRecord::Replace(r.clone()))?; book.replace(r)
++        let mut g = self.inner.lock();
++        g.wal.append(&WalRecord::Replace(r.clone()))?;
++        { let book = g.markets.get_mut(&r.market_id).ok_or_else(|| anyhow::anyhow!("unknown market"))?; book.replace(r)?; }
++        Ok(())
+     }
+     pub fn snapshot_all(&self) -> anyhow::Result<()> { let g = self.inner.lock(); g.snap.write_all(&g.markets)?; Ok(()) }
+     pub fn state_hash(&self) -> anyhow::Result<[u8; 32]> { let g = self.inner.lock(); Ok(crate::hash::state_hash(&g.markets)) }
+     pub fn restore_from_latest(&self) -> anyhow::Result<()> {
+-        let mut g = self.inner.lock(); if let Some(state) = g.snap.try_read_latest()? { g.markets = state; }
+-        g.wal.replay(|rec| { match rec {
+-            WalRecord::Place(o) => { let book = g.markets.get_mut(&o.market_id).ok_or_else(|| anyhow::anyhow!("unknown market"))?; let _ = book.place(o); },
+-            WalRecord::Cancel{market_id, order_id} => { let book = g.markets.get_mut(&market_id).ok_or_else(|| anyhow::anyhow!("unknown market"))?; let _ = book.cancel(order_id); },
+-            WalRecord::Replace(r) => { let book = g.markets.get_mut(&r.market_id).ok_or_else(|| anyhow::anyhow!("unknown market"))?; let _ = book.replace(r); },
+-            WalRecord::Settle{s} => { if let Some(book) = g.markets.get_mut(&s.market_id) { book.settle(s.resolve_yes); } }
+-        } Ok(()) })?; Ok(())
++        let mut g = self.inner.lock();
++        if let Some(state) = g.snap.try_read_latest()? { g.markets = state; }
++        // Collect WAL, then apply — avoids borrowing g twice during replay.
++        let mut recs = Vec::new();
++        g.wal.replay(|rec| { recs.push(rec); Ok(()) })?;
++        for rec in recs {
++            match rec {
++                WalRecord::Place(o) => { if let Some(book) = g.markets.get_mut(&o.market_id) { let _ = book.place(o); } }
++                WalRecord::Cancel{market_id, order_id} => { if let Some(book) = g.markets.get_mut(&market_id) { let _ = book.cancel(order_id); } }
++                WalRecord::Replace(r) => { if let Some(book) = g.markets.get_mut(&r.market_id) { let _ = book.replace(r); } }
++                WalRecord::Settle{s} => { if let Some(book) = g.markets.get_mut(&s.market_id) { book.settle(s.resolve_yes); } }
++            }
++        }
++        info!("Restored from snapshot+WAL");
++        Ok(())
+     }
+ }

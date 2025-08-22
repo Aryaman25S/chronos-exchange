@@ -1,5 +1,4 @@
-
-use std::{path::PathBuf, fs::{self, File}, io::{Read, Write}};
+use std::{path::PathBuf, fs::File, io::{Read, Write}};
 use anyhow::Result;
 use crate::orderbook::BookState;
 use std::collections::HashMap;
