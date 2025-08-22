@@ -1,7 +1,5 @@
-
 use serde::{Serialize, Deserialize};
 use uuid::Uuid;
-use std::collections::VecDeque;
 
 pub type MarketId = String;
 pub type OrderId = Uuid;
@@ -26,7 +24,7 @@ pub struct L2Level { pub price: u32, pub qty: u64 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct L2Book { pub bids: Vec<L2Level>, pub asks: Vec<L2Level> }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Order { pub id: OrderId, pub user_id: UserId, pub price: u32, pub qty: u32, pub ts: u64 }
 impl From<&NewOrder> for Order {
     fn from(o: &NewOrder) -> Self {

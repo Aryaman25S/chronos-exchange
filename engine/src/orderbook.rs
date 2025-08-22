@@ -1,4 +1,3 @@
-
 use crate::types::*;
 use serde::{Serialize, Deserialize};
 use std::collections::{BTreeMap, VecDeque};
@@ -34,34 +33,73 @@ impl OrderBook {
         if self.state.settled.is_some() { return Ok(vec![]); }
         let mut incoming = Order::from(&o);
         let mut fills = vec![];
-        let cross = || match o.side {
-            Side::Buy => self.best_ask().map(|a| incoming.price >= a).unwrap_or(false),
-            Side::Sell => self.best_bid().map(|b| incoming.price <= b).unwrap_or(false),
-        };
-        while incoming.qty > 0 && cross() {
+        while incoming.qty > 0 {
+            let is_cross = match o.side {
+                Side::Buy => self.best_ask().map(|a| incoming.price >= a).unwrap_or(false),
+                Side::Sell => self.best_bid().map(|b| incoming.price <= b).unwrap_or(false),
+            };
+            if !is_cross { break; }
             match o.side {
                 Side::Buy => {
                     let best_ask = self.best_ask().unwrap();
-                    let q = self.state.asks.get_mut(&best_ask).unwrap();
-                    if let Some(maker) = q.front_mut() {
-                        if maker.user_id == incoming.user_id { incoming.qty = 0; break; }
-                        let traded = maker.qty.min(incoming.qty);
-                        maker.qty -= traded; incoming.qty -= traded;
-                        self.state.last_trade = Some(best_ask); self.state.seq += 1;
-                        fills.push(Fill{ market_id:o.market_id.clone(), taker_order_id:o.id, maker_order_id:maker.id, price:best_ask, qty:traded, buyer:incoming.user_id, seller:maker.user_id });
-                        if maker.qty == 0 { q.pop_front(); } if q.is_empty() { self.state.asks.remove(&best_ask); }
+                    let mut pending: Option<(OrderId, UserId, u32, u32)> = None; // maker_id, maker_user, qty, px
+                    {
+                        let q = self.state.asks.get_mut(&best_ask).unwrap();
+                        if let Some(maker) = q.front_mut() {
+                            if maker.user_id == incoming.user_id { incoming.qty = 0; break; } // STP
+                            let traded = maker.qty.min(incoming.qty);
+                            maker.qty -= traded;
+                            incoming.qty -= traded;
+                            let maker_id = maker.id;
+                            let maker_user = maker.user_id;
+                            if maker.qty == 0 { q.pop_front(); }
+                            pending = Some((maker_id, maker_user, traded, best_ask));
+                        } else { break; }
+                        if q.is_empty() { self.state.asks.remove(&best_ask); }
+                    }
+                    if let Some((maker_id, maker_user, traded_qty, px)) = pending {
+                        self.state.last_trade = Some(px);
+                        self.state.seq += 1;
+                        fills.push(Fill{
+                            market_id:o.market_id.clone(),
+                            taker_order_id:o.id,
+                            maker_order_id:maker_id,
+                            price:px,
+                            qty:traded_qty,
+                            buyer:incoming.user_id,
+                            seller:maker_user
+                        });
                     }
                 }
                 Side::Sell => {
                     let best_bid = self.best_bid().unwrap();
-                    let q = self.state.bids.get_mut(&best_bid).unwrap();
-                    if let Some(maker) = q.front_mut() {
-                        if maker.user_id == incoming.user_id { incoming.qty = 0; break; }
-                        let traded = maker.qty.min(incoming.qty);
-                        maker.qty -= traded; incoming.qty -= traded;
-                        self.state.last_trade = Some(best_bid); self.state.seq += 1;
-                        fills.push(Fill{ market_id:o.market_id.clone(), taker_order_id:o.id, maker_order_id:maker.id, price:best_bid, qty:traded, buyer:maker.user_id, seller:incoming.user_id });
-                        if maker.qty == 0 { q.pop_front(); } if q.is_empty() { self.state.bids.remove(&best_bid); }
+                    let mut pending: Option<(OrderId, UserId, u32, u32)> = None;
+                    {
+                        let q = self.state.bids.get_mut(&best_bid).unwrap();
+                        if let Some(maker) = q.front_mut() {
+                            if maker.user_id == incoming.user_id { incoming.qty = 0; break; }
+                            let traded = maker.qty.min(incoming.qty);
+                            maker.qty -= traded;
+                            incoming.qty -= traded;
+                            let maker_id = maker.id;
+                            let maker_user = maker.user_id;
+                            if maker.qty == 0 { q.pop_front(); }
+                            pending = Some((maker_id, maker_user, traded, best_bid));
+                        } else { break; }
+                        if q.is_empty() { self.state.bids.remove(&best_bid); }
+                    }
+                    if let Some((maker_id, maker_user, traded_qty, px)) = pending {
+                        self.state.last_trade = Some(px);
+                        self.state.seq += 1;
+                        fills.push(Fill{
+                            market_id:o.market_id.clone(),
+                            taker_order_id:o.id,
+                            maker_order_id:maker_id,
+                            price:px,
+                            qty:traded_qty,
+                            buyer:maker_user,
+                            seller:incoming.user_id
+                        });
                     }
                 }
             }
@@ -96,9 +134,7 @@ impl OrderBook {
         Ok(())
     }
 
-    pub fn replace(&mut self, r: ReplaceOrder) -> Result<()> {
-        Ok(()) // simplified placeholder
-    }
+    pub fn replace(&mut self, _r: ReplaceOrder) -> Result<()> { Ok(()) }
 
     pub fn settle(&mut self, yes: bool) { self.state.settled = Some(yes); self.state.seq += 1; }
 }
