@@ -1,0 +1,9 @@
+{
+  "market_id": "OKC_WIN_YESNO",
+  "timeline": [
+    {
+      "t": 0,
+      "event": "tipoff"
+    }
+  ]
+}

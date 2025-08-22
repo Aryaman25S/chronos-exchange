@@ -1,0 +1,53 @@
+
+# --- Rust ---
+/target/
+**/target/
+**/*.rs.bk
+
+# Keep Cargo.lock for binaries/workspaces (DO NOT ignore)
+# (We intentionally do NOT list Cargo.lock here.)
+
+# --- Node/Vite (UI) ---
+ui/node_modules/
+ui/dist/
+ui/.vite/
+
+# --- Logs ---
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# --- OS junk ---
+.DS_Store
+Thumbs.db
+
+# --- Editor/IDE ---
+.vscode/
+.idea/
+
+# --- Env/local config ---
+.env
+.env.*
+!.env.example
+
+# --- Runtime data & snapshots/WAL (simulation artifacts) ---
+data_runtime/
+**/wal/*.wal
+**/wal/*.wal.*
+**/snapshots/*.zst
+**/snapshots/*.bin
+**/snapshots/*.bin.zst
+
+# --- Docker-related local data (if you bind-mount these) ---
+deploy/prometheus-data/
+deploy/grafana-data/
+
+# --- Perf/bench artifacts ---
+flamegraph.svg
+perf.data
+perf.data.old
+target/criterion/
+
+# --- Misc artifacts ---
+*.zip

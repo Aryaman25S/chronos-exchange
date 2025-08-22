@@ -1,0 +1,12 @@
+
+[workspace]
+members = [
+    "engine",
+    "gateway",
+    "risk",
+    "md",
+    "tools/loadgen",
+    "tools/replay_seeder",
+    "tools/state_hash"
+]
+resolver = "2"

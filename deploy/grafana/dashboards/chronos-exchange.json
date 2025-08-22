@@ -1,0 +1,25 @@
+{
+  "title": "Chronos Exchange",
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "Orders/sec",
+      "targets": [
+        {
+          "expr": "rate(http_requests_total[1m])"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Match Latency p99",
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.99, sum(rate(match_latency_bucket[1m])) by (le))"
+        }
+      ]
+    }
+  ],
+  "schemaVersion": 36,
+  "version": 1
+}

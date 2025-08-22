@@ -1,0 +1,3 @@
+- No crossed book
+- FIFO at price
+- Deterministic WAL+snapshot
