@@ -54,3 +54,6 @@ target/criterion/
 
 # --- Misc artifacts ---
 *.zip
+
+# --- Local-only demo PDF (generate with tools/render_demo_walkthrough_pdf.py) ---
+docs/Demo_Mock_Interview_Walkthrough.pdf
