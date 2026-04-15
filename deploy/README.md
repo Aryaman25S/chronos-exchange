@@ -6,6 +6,72 @@ The `postgres` service in `docker-compose.yml` is optional and **not used** by t
 
 ---
 
+## GitHub + Fly.io (push to deploy)
+
+Use this when you want **Fly to build and deploy from your GitHub repo** on every push to `main` (workflow: [`.github/workflows/fly-deploy.yml`](../.github/workflows/fly-deploy.yml)).
+
+### One-time setup
+
+1. **Put the code on GitHub** (create a repo and push this project, or fork it).
+
+2. **Install `flyctl`** and log in locally (once):
+
+   ```bash
+   fly auth login
+   ```
+
+3. **Pick a unique Fly app name** (e.g. `chronos-yourname`). Create the app on Fly:
+
+   ```bash
+   fly apps create chronos-yourname
+   ```
+
+4. **Add `fly.toml` at the repo root** (Fly reads this on deploy). Copy the example and set the same name:
+
+   ```bash
+   cp deploy/fly.toml.example fly.toml
+   # Edit fly.toml: app = "chronos-yourname"
+   ```
+
+5. **Create a deploy token** and add it to GitHub:
+
+   ```bash
+   fly tokens create deploy
+   ```
+
+   In GitHub: **Repo → Settings → Secrets and variables → Actions → New repository secret**  
+   Name: **`FLY_API_TOKEN`**  
+   Value: the token from the command above.
+
+6. **Commit and push** `fly.toml` and the workflow (already in this repo under `.github/workflows/`):
+
+   ```bash
+   git add fly.toml .github/workflows/fly-deploy.yml
+   git commit -m "chore: Fly.io deploy config"
+   git push origin main
+   ```
+
+   The **Deploy to Fly.io** workflow runs on each push to `main`. Check **Actions** for logs; when it succeeds, open **`https://chronos-yourname.fly.dev`** (use your real app name).
+
+7. **Optional:** set admin token on the Fly app (for settlement API):
+
+   ```bash
+   fly secrets set ADMIN_TOKEN="$(openssl rand -hex 16)" -a chronos-yourname
+   ```
+
+8. **Optional volume** for persistent `/data`: see [Fly.io volumes](https://fly.io/docs/reference/volumes/) and uncomment `[[mounts]]` in `fly.toml` after `fly volumes create ...`.
+
+### Fly dashboard “Launch from GitHub”
+
+The onboarding screen that says **Sign in with GitHub** is an alternative way to **link your GitHub account to Fly**. You still need a **`fly.toml`** that points at **`deploy/Dockerfile.web`** and a way to deploy (this repo uses **GitHub Actions** + **`FLY_API_TOKEN`**). You can use the dashboard to create the app or manage secrets, but the **push-to-deploy** path above is the one this repository is set up for.
+
+### Build details
+
+- **`flyctl deploy --remote-only`** builds the image on **Fly’s builders** (no Docker required on GitHub’s runners for the Rust/UI compile).
+- Image definition: **`deploy/Dockerfile.web`**, build context **repository root** (see `[build]` in `fly.toml`).
+
+---
+
 ## Recommended: single image (nginx + UI + gateway)
 
 ### Build locally

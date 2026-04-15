@@ -15,6 +15,8 @@ COPY engine ./engine
 COPY risk ./risk
 COPY md ./md
 COPY gateway ./gateway
+# Workspace members listed in root Cargo.toml — required for `cargo` to load the workspace
+COPY tools ./tools
 RUN cargo build --release -p gateway
 
 FROM debian:bookworm-slim
