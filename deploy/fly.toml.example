@@ -1,0 +1,29 @@
+# Copy to fly.toml and run `fly launch` / `fly deploy` from the repo root.
+# Rename `app` to a unique Fly app name.
+
+app = "chronos-exchange"
+primary_region = "iad"
+
+[build]
+  dockerfile = "deploy/Dockerfile.web"
+
+[env]
+  CHRONOS_SEED_DUMMY_TRADES = "0"
+  RUST_LOG = "info"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = true
+  auto_start_machines = true
+
+[[vm]]
+  memory = "512mb"
+  cpus = 1
+
+# Optional: persist WAL across restarts (create volume first, same region as app):
+#   fly volumes create chronos_data --region iad --size 1
+# Then uncomment:
+# [[mounts]]
+#   source = "chronos_data"
+#   destination = "/data"

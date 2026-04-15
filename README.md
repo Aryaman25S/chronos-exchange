@@ -17,6 +17,8 @@ docker compose up --build
 - **Prometheus**: http://localhost:9090
 - **Grafana**: http://localhost:3000
 
+**Public deploy (one URL for UI + API):** build `deploy/Dockerfile.web` and run behind Fly.io or any container host — see [deploy/README.md](deploy/README.md).
+
 ## ~90 second demo
 
 1. Open the UI at `/` — browse or search, then open a market (e.g. `/m/OKC_WIN_YESNO`). Your user id is stored in `localStorage` and sent as `X-User-Id`.
