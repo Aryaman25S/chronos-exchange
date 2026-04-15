@@ -1,0 +1,25 @@
+{
+  "markets": [
+    {
+      "id": "OKC_WIN_YESNO",
+      "name": "OKC wins YES/NO",
+      "tick_size": 1,
+      "description": "Does Oklahoma City win the matchup? YES shares pay $1 if YES.",
+      "tags": ["NBA", "Basketball", "Demo"]
+    },
+    {
+      "id": "BTC_100K_EOY",
+      "name": "BTC above $100k by year-end",
+      "tick_size": 1,
+      "description": "Play-money binary on Bitcoin crossing $100,000 USD before settlement date.",
+      "tags": ["Crypto", "BTC", "Macro"]
+    },
+    {
+      "id": "FED_CUT_MAY",
+      "name": "Fed cuts rates before May meeting",
+      "tick_size": 1,
+      "description": "YES if the FOMC announces a rate cut on or before the May decision window.",
+      "tags": ["Macro", "Rates", "Fed"]
+    }
+  ]
+}

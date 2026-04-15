@@ -1,25 +1,43 @@
 {
   "title": "Chronos Exchange",
+  "uid": "chronos-exchange",
+  "timezone": "browser",
+  "schemaVersion": 36,
+  "version": 1,
+  "refresh": "5s",
   "panels": [
     {
       "type": "timeseries",
-      "title": "Orders/sec",
+      "title": "Orders accepted / sec",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
       "targets": [
         {
-          "expr": "rate(http_requests_total[1m])"
+          "expr": "rate(chronos_orders_accepted_total[1m])",
+          "legendFormat": "accepted"
         }
       ]
     },
     {
       "type": "timeseries",
-      "title": "Match Latency p99",
+      "title": "Match latency p99 (gateway engine.place)",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
       "targets": [
         {
-          "expr": "histogram_quantile(0.99, sum(rate(match_latency_bucket[1m])) by (le))"
+          "expr": "histogram_quantile(0.99, sum(rate(chronos_gateway_engine_match_seconds_bucket[5m])) by (le))",
+          "legendFormat": "p99"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "WebSocket clients",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "targets": [
+        {
+          "expr": "chronos_ws_connected_clients",
+          "legendFormat": "clients"
         }
       ]
     }
-  ],
-  "schemaVersion": 36,
-  "version": 1
+  ]
 }

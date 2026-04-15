@@ -52,9 +52,9 @@ async fn main() -> anyhow::Result<()> {
                 // Generate randomness in a scope that ends before `.await`
                 let (price, side, qty) = {
                     let mut r = rand::thread_rng();
-                    let price = 40 + r.gen_range(0..20);          // 40..59 (cents)
+                    let price = 40 + r.gen_range(0..20); // 40..59 (cents)
                     let side: &str = if r.gen_bool(0.5) { "buy" } else { "sell" };
-                    let qty = 1 + r.gen_range(0..5);               // 1..5
+                    let qty = 1 + r.gen_range(0..5); // 1..5
                     (price, side, qty)
                 };
 
@@ -92,7 +92,11 @@ async fn main() -> anyhow::Result<()> {
 
     println!(
         "target_total={} sent={} ok={} duration_secs={:.2} approx_qps={:.1}",
-        total_target, sent, ok, dur.as_secs_f64(), approx_qps
+        total_target,
+        sent,
+        ok,
+        dur.as_secs_f64(),
+        approx_qps
     );
 
     Ok(())

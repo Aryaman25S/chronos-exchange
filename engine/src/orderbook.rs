@@ -41,6 +41,52 @@ impl OrderBook {
         self.state.asks.keys().next().copied()
     }
 
+    /// Full fill possible without self-trade blocking completion (read-only).
+    pub fn can_fok_fill(&self, o: &NewOrder) -> bool {
+        let mut need = o.qty;
+        if need == 0 {
+            return true;
+        }
+        match o.side {
+            Side::Buy => {
+                for (&price, queue) in self.state.asks.iter() {
+                    if price > o.price {
+                        break;
+                    }
+                    for maker in queue.iter() {
+                        if maker.user_id == o.user_id {
+                            return false;
+                        }
+                        let take = need.min(maker.qty);
+                        need -= take;
+                        if need == 0 {
+                            return true;
+                        }
+                    }
+                }
+                false
+            }
+            Side::Sell => {
+                for (&price, queue) in self.state.bids.iter().rev() {
+                    if price < o.price {
+                        break;
+                    }
+                    for maker in queue.iter() {
+                        if maker.user_id == o.user_id {
+                            return false;
+                        }
+                        let take = need.min(maker.qty);
+                        need -= take;
+                        if need == 0 {
+                            return true;
+                        }
+                    }
+                }
+                false
+            }
+        }
+    }
+
     pub fn l2(&self, depth: usize) -> L2Book {
         let bids = self
             .state
@@ -66,15 +112,46 @@ impl OrderBook {
         L2Book { bids, asks }
     }
 
+    /// Resting GTC orders for `user` on both sides.
+    pub fn resting_orders_for_user(&self, user: UserId) -> Vec<(Side, Order)> {
+        let mut out = Vec::new();
+        for q in self.state.bids.values() {
+            for o in q.iter() {
+                if o.user_id == user && o.qty > 0 {
+                    out.push((Side::Buy, o.clone()));
+                }
+            }
+        }
+        for q in self.state.asks.values() {
+            for o in q.iter() {
+                if o.user_id == user && o.qty > 0 {
+                    out.push((Side::Sell, o.clone()));
+                }
+            }
+        }
+        out
+    }
+
     /// Price–time priority matching with STP (cancel incoming vs self).
-    pub fn place(&mut self, o: NewOrder) -> Result<Vec<Fill>> {
+    pub fn place(&mut self, o: NewOrder) -> Result<PlaceResult> {
         if self.state.settled.is_some() {
-            return Ok(vec![]);
+            return Ok(PlaceResult {
+                fills: vec![],
+                self_trade_prevented: false,
+                rested: false,
+            });
+        }
+        if matches!(o.tif, Tif::Fok) && !self.can_fok_fill(&o) {
+            return Ok(PlaceResult {
+                fills: vec![],
+                self_trade_prevented: false,
+                rested: false,
+            });
         }
         let mut incoming = Order::from(&o);
         let mut fills = Vec::new();
+        let mut stp_hit = false;
 
-        // Match loop: re-evaluate crossing each iteration.
         while incoming.qty > 0 {
             let is_cross = match o.side {
                 Side::Buy => self
@@ -97,13 +174,11 @@ impl OrderBook {
                         None => break,
                     };
 
-                    // Work inside an expression block to end the mutable borrow
-                    // before we touch other parts of self.state.
                     let trade: Option<(OrderId, UserId, u32, u32)> = {
                         let q = self.state.asks.get_mut(&best_ask).unwrap();
                         if let Some(maker) = q.front_mut() {
-                            // STP: cancel incoming against own resting order
                             if maker.user_id == incoming.user_id {
+                                stp_hit = true;
                                 incoming.qty = 0;
                                 None
                             } else {
@@ -116,10 +191,6 @@ impl OrderBook {
                                 if maker.qty == 0 {
                                     q.pop_front();
                                 }
-                                // remove empty price level
-                                if q.is_empty() {
-                                    // defer actual remove after borrow ends
-                                }
                                 Some((maker_id, maker_user, traded, best_ask))
                             }
                         } else {
@@ -127,7 +198,6 @@ impl OrderBook {
                         }
                     };
 
-                    // Remove empty price level if needed
                     if let Some(q) = self.state.asks.get(&best_ask) {
                         if q.is_empty() {
                             self.state.asks.remove(&best_ask);
@@ -161,6 +231,7 @@ impl OrderBook {
                         let q = self.state.bids.get_mut(&best_bid).unwrap();
                         if let Some(maker) = q.front_mut() {
                             if maker.user_id == incoming.user_id {
+                                stp_hit = true;
                                 incoming.qty = 0;
                                 None
                             } else {
@@ -172,9 +243,6 @@ impl OrderBook {
                                 let maker_user = maker.user_id;
                                 if maker.qty == 0 {
                                     q.pop_front();
-                                }
-                                if q.is_empty() {
-                                    // defer remove after borrow ends
                                 }
                                 Some((maker_id, maker_user, traded, best_bid))
                             }
@@ -208,19 +276,17 @@ impl OrderBook {
             }
         }
 
-        // Post-match handling by TIF
+        let mut rested = false;
         match o.tif {
             Tif::Fok => {
-                // If anything left, FOK discards remainder (we already consumed crossable)
                 incoming.qty = 0;
             }
             Tif::Ioc => {
-                // Discard any unfilled remainder
                 incoming.qty = 0;
             }
             Tif::Gtc => {
-                // Rest remaining qty on the book
                 if incoming.qty > 0 {
+                    rested = true;
                     match o.side {
                         Side::Buy => self
                             .state
@@ -240,7 +306,11 @@ impl OrderBook {
             }
         }
 
-        Ok(fills)
+        Ok(PlaceResult {
+            fills,
+            self_trade_prevented: stp_hit,
+            rested,
+        })
     }
 
     pub fn cancel(&mut self, order_id: OrderId) -> Result<()> {
@@ -268,9 +338,69 @@ impl OrderBook {
         Ok(())
     }
 
-    pub fn replace(&mut self, _r: ReplaceOrder) -> Result<()> {
-        // Minimal stub: a real implementation would locate and modify price/qty,
-        // adjusting queue position per exchange rules (cancel+reinsert, etc.).
+    /// Cancel and re-place at new price/qty (loses time priority at new level).
+    pub fn replace(&mut self, r: ReplaceOrder) -> Result<()> {
+        if self.state.settled.is_some() {
+            return Ok(());
+        }
+        let mut found: Option<(Side, Order)> = None;
+        for q in self.state.bids.values_mut() {
+            if let Some(pos) = q.iter().position(|o| o.id == r.order_id) {
+                let o = q.remove(pos).unwrap();
+                found = Some((Side::Buy, o));
+                break;
+            }
+        }
+        if found.is_none() {
+            for q in self.state.asks.values_mut() {
+                if let Some(pos) = q.iter().position(|o| o.id == r.order_id) {
+                    let o = q.remove(pos).unwrap();
+                    found = Some((Side::Sell, o));
+                    break;
+                }
+            }
+        }
+        let (side, old) = found.ok_or_else(|| anyhow::anyhow!("order not found"))?;
+
+        let empty_bids: Vec<u32> = self
+            .state
+            .bids
+            .iter()
+            .filter(|(_, q)| q.is_empty())
+            .map(|(p, _)| *p)
+            .collect();
+        for p in empty_bids {
+            self.state.bids.remove(&p);
+        }
+        let empty_asks: Vec<u32> = self
+            .state
+            .asks
+            .iter()
+            .filter(|(_, q)| q.is_empty())
+            .map(|(p, _)| *p)
+            .collect();
+        for p in empty_asks {
+            self.state.asks.remove(&p);
+        }
+
+        self.state.seq += 1;
+
+        let new_price = r.new_price.unwrap_or(old.price);
+        let new_qty = r.new_qty.unwrap_or(old.qty);
+        if new_qty == 0 {
+            anyhow::bail!("invalid new_qty");
+        }
+        let new_o = NewOrder {
+            id: r.order_id,
+            user_id: old.user_id,
+            market_id: r.market_id,
+            side,
+            price: new_price,
+            qty: new_qty,
+            tif: Tif::Gtc,
+            idempotency: None,
+        };
+        let _ = self.place(new_o)?;
         Ok(())
     }
 

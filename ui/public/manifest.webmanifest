@@ -1,0 +1,10 @@
+{
+  "name": "Chronos Exchange",
+  "short_name": "Chronos",
+  "description": "Play-money prediction market simulator",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "icons": []
+}

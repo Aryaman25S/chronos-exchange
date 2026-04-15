@@ -1,10 +1,17 @@
-
-use engine::types::*;
 use engine::orderbook::OrderBook;
+use engine::types::*;
 use proptest::prelude::*;
 use uuid::Uuid;
 
-fn mk_market() -> Market { Market { id: "TEST".into(), name: "Test".into(), tick_size: 1 } }
+fn mk_market() -> Market {
+    Market {
+        id: "TEST".into(),
+        name: "Test".into(),
+        tick_size: 1,
+        description: String::new(),
+        tags: vec![],
+    }
+}
 
 proptest! {
     #[test]

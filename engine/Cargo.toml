@@ -18,8 +18,8 @@ tracing = "0.1"
 uuid = { version = "1", features = ["v4", "serde"] }
 prometheus = "0.13"
 crossbeam-channel = "0.5"
-chrono = { version = "0.4", features = ["clock"] }
 
 [dev-dependencies]
 proptest = "1"
 rand = "0.8"
+tempfile = "3"

@@ -1,9 +1,13 @@
 {
   "market_id": "OKC_WIN_YESNO",
   "timeline": [
-    {
-      "t": 0,
-      "event": "tipoff"
-    }
+    { "t": 0, "event": "tipoff" },
+    { "t": 60, "event": "q1_mid" }
+  ],
+  "orders": [
+    { "delay_ms": 0, "side": "buy", "price": 48, "qty": 2 },
+    { "delay_ms": 120, "side": "sell", "price": 52, "qty": 1 },
+    { "delay_ms": 240, "side": "buy", "price": 50, "qty": 3 },
+    { "delay_ms": 360, "side": "sell", "price": 51, "qty": 2 }
   ]
 }

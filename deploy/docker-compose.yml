@@ -11,10 +11,13 @@ services:
     volumes: [ "pgdata:/var/lib/postgresql/data" ]
 
   gateway:
-    build: ../gateway
+    build:
+      context: ..
+      dockerfile: gateway/Dockerfile
     environment:
       RUST_LOG: info
       DATA_DIR: /data
+      ADMIN_TOKEN: dev
     volumes:
       - chronosdata:/data
     ports: ["8081:8081"]
