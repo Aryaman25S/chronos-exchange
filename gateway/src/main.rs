@@ -344,18 +344,82 @@ async fn replace_order(
 }
 
 #[derive(Serialize)]
+struct MarketStats {
+    /// Simulated notional traded (dollars): sum over fills of (price/100)×qty.
+    volume_usd: f64,
+    fill_count: u64,
+    best_bid_cents: Option<u32>,
+    best_ask_cents: Option<u32>,
+    /// Mid price in cents when both sides exist; else best bid or ask alone.
+    mid_cents: Option<f64>,
+    /// Implied YES probability (0–100), same as mid for a binary YES contract in cents.
+    yes_implied_pct: Option<f64>,
+    last_trade_cents: Option<u32>,
+}
+
+fn book_stats(engine: &Engine, market_id: &str) -> MarketStats {
+    let Some((l2, last_trade, _seq)) = engine.get_market_snapshot(market_id, 50) else {
+        return MarketStats {
+            volume_usd: 0.0,
+            fill_count: 0,
+            best_bid_cents: None,
+            best_ask_cents: None,
+            mid_cents: None,
+            yes_implied_pct: None,
+            last_trade_cents: None,
+        };
+    };
+    let bb = l2.bids.first().map(|l| l.price);
+    let ba = l2.asks.first().map(|l| l.price);
+    let (mid, yes) = match (bb, ba) {
+        (Some(b), Some(a)) => {
+            let m = (b + a) as f64 / 2.0;
+            (Some(m), Some(m))
+        }
+        (Some(b), None) => (Some(b as f64), Some(b as f64)),
+        (None, Some(a)) => (Some(a as f64), Some(a as f64)),
+        (None, None) => (None, None),
+    };
+    let yes_implied = yes.or_else(|| last_trade.map(|p| p as f64));
+    MarketStats {
+        volume_usd: 0.0,
+        fill_count: 0,
+        best_bid_cents: bb,
+        best_ask_cents: ba,
+        mid_cents: mid,
+        yes_implied_pct: yes_implied,
+        last_trade_cents: last_trade,
+    }
+}
+
+#[derive(Serialize)]
 struct MarketRow {
     #[serde(flatten)]
     market: Market,
     settled: Option<bool>,
+    stats: MarketStats,
 }
 
 async fn list_markets(State(app): State<AppState>) -> impl IntoResponse {
+    let trade_by_m = app.ledger.per_market_trade_stats();
     let rows: Vec<MarketRow> = app
         .engine
         .list_markets_detail()
         .into_iter()
-        .map(|(market, settled)| MarketRow { market, settled })
+        .map(|(market, settled)| {
+            let mut bs = book_stats(&app.engine, &market.id);
+            let (vol, n) = trade_by_m
+                .get(&market.id)
+                .copied()
+                .unwrap_or((0.0, 0));
+            bs.volume_usd = vol;
+            bs.fill_count = n as u64;
+            MarketRow {
+                market,
+                settled,
+                stats: bs,
+            }
+        })
         .collect();
     Json(rows)
 }

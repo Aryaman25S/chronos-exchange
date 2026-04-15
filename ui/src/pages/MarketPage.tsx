@@ -15,6 +15,7 @@ import { Tape } from '@/components/Tape'
 import { useMarketWebSocket } from '@/hooks/useMarketWebSocket'
 import { useUserId } from '@/hooks/useUserId'
 import { cn } from '@/lib/utils'
+import { formatVolUsd } from '@/lib/formatVol'
 import { getWebSocketUrl } from '@/lib/wsUrl'
 
 export function MarketPage() {
@@ -29,6 +30,11 @@ export function MarketPage() {
     () => markets?.find((m) => m.id === marketId),
     [markets, marketId]
   )
+  const title = useMemo(() => {
+    if (marketMeta) return marketMeta.name
+    if (markets === undefined) return 'Loading…'
+    return 'Market not found'
+  }, [marketMeta, markets])
 
   const ws = useMarketWebSocket(getWebSocketUrl(marketId), replay, marketId)
   const pos = usePositions(userId)
@@ -50,12 +56,34 @@ export function MarketPage() {
             <ChevronLeft className="h-4 w-4" aria-hidden />
             Markets
           </Link>
-          <h1 className="text-2xl font-bold text-slate-50 truncate">
-            {marketMeta?.name ?? marketId}
-          </h1>
-          <p className="font-mono text-xs text-slate-500 truncate">{marketId}</p>
+          <h1 className="text-2xl font-bold text-slate-50 truncate">{title}</h1>
           {marketMeta?.description ? (
             <p className="text-sm text-slate-400 max-w-2xl">{marketMeta.description}</p>
+          ) : null}
+          {marketMeta?.settled == null && marketMeta?.stats ? (
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500 pt-1">
+              <span>
+                <span className="text-slate-400 font-medium tabular-nums">
+                  {formatVolUsd(marketMeta.stats.volume_usd)}
+                </span>{' '}
+                vol
+                {marketMeta.stats.fill_count > 0 ? (
+                  <span className="text-slate-600"> · {marketMeta.stats.fill_count} trades</span>
+                ) : null}
+              </span>
+              {marketMeta.stats.yes_implied_pct != null ? (
+                <span className="text-slate-400">
+                  YES ~{marketMeta.stats.yes_implied_pct.toFixed(0)}% implied
+                  {marketMeta.stats.best_bid_cents != null &&
+                  marketMeta.stats.best_ask_cents != null ? (
+                    <span className="text-slate-600">
+                      {' '}
+                      ({marketMeta.stats.best_bid_cents}–{marketMeta.stats.best_ask_cents}¢)
+                    </span>
+                  ) : null}
+                </span>
+              ) : null}
+            </div>
           ) : null}
           {marketMeta?.settled != null ? (
             <p className="text-sm text-amber-200/90">

@@ -78,6 +78,18 @@ impl Ledger {
         log.iter().rev().take(limit).cloned().collect()
     }
 
+    /// Per-market simulated dollar volume (price in dollars × contracts) and fill count.
+    pub fn per_market_trade_stats(&self) -> HashMap<String, (f64, usize)> {
+        let log = self.fills.lock();
+        let mut m: HashMap<String, (f64, usize)> = HashMap::new();
+        for f in log.iter() {
+            let e = m.entry(f.market_id.clone()).or_insert((0.0, 0));
+            e.0 += (f.price as f64 / 100.0) * f.qty as f64;
+            e.1 += 1;
+        }
+        m
+    }
+
     /// Binary payoff: YES settles to 100¢, NO to 0¢ per YES contract.
     pub fn apply_settlement(&self, market_id: &str, resolve_yes: bool) {
         let settle_px = if resolve_yes { 100i64 } else { 0i64 };
