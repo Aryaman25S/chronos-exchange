@@ -105,18 +105,9 @@ fn user_from_headers(headers: &HeaderMap) -> UserId {
         .unwrap_or_else(Uuid::new_v4)
 }
 
-#[tokio::main]
-async fn main() -> anyhow::Result<()> {
-    tracing_subscriber::fmt()
-        .with_env_filter(
-            EnvFilter::from_default_env().add_directive("gateway=info".parse().unwrap()),
-        )
-        .init();
-
-    let data_dir = std::env::var("DATA_DIR").unwrap_or_else(|_| "./data_runtime".into());
-    let catalog = load_markets_seed();
-    let engine = Engine::new(PathBuf::from(&data_dir))?;
-    for m in &catalog {
+fn init_app_state(data_dir: PathBuf, catalog: &[Market]) -> anyhow::Result<AppState> {
+    let engine = Engine::new(data_dir)?;
+    for m in catalog {
         engine.ensure_market(m.clone());
     }
     engine.restore_from_latest()?;
@@ -132,8 +123,43 @@ async fn main() -> anyhow::Result<()> {
     let ledger = Arc::new(Ledger::default());
     let metrics = Metrics::new()?;
 
-    let eng_clone = engine.clone();
-    let md_clone = md.clone();
+    Ok(AppState {
+        engine,
+        risk,
+        ledger,
+        md,
+        metrics,
+    })
+}
+
+/// Returns `Router<()>` (state applied); required for [`axum::serve`].
+fn make_app(state: AppState) -> Router {
+    Router::new()
+        .route("/metrics", get(metrics_handler))
+        .route("/v1/orders", get(list_open_orders).post(place_order))
+        .route("/v1/orders/{id}", delete(cancel_order).put(replace_order))
+        .route("/v1/markets", get(list_markets))
+        .route("/v1/positions", get(get_positions))
+        .route("/v1/fills", get(get_fills))
+        .route("/v1/admin/markets/{market_id}/settle", post(admin_settle))
+        .route("/ws", get(ws_handler_with_query))
+        .with_state(state)
+}
+
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            EnvFilter::from_default_env().add_directive("gateway=info".parse().unwrap()),
+        )
+        .init();
+
+    let data_dir = std::env::var("DATA_DIR").unwrap_or_else(|_| "./data_runtime".into());
+    let catalog = load_markets_seed();
+    let state = init_app_state(PathBuf::from(&data_dir), &catalog)?;
+
+    let eng_clone = state.engine.clone();
+    let md_clone = state.md.clone();
     tokio::spawn(async move {
         loop {
             for (m, _) in eng_clone.list_markets_detail() {
@@ -145,27 +171,10 @@ async fn main() -> anyhow::Result<()> {
         }
     });
 
-    let state = AppState {
-        engine,
-        risk,
-        ledger,
-        md,
-        metrics,
-    };
-
     let market_ids: Vec<String> = catalog.iter().map(|m| m.id.clone()).collect();
     dummy_seed::maybe_seed_dummy_trades(&state, std::path::Path::new(&data_dir), &market_ids)?;
 
-    let app = Router::new()
-        .route("/metrics", get(metrics_handler))
-        .route("/v1/orders", get(list_open_orders).post(place_order))
-        .route("/v1/orders/:id", delete(cancel_order).put(replace_order))
-        .route("/v1/markets", get(list_markets))
-        .route("/v1/positions", get(get_positions))
-        .route("/v1/fills", get(get_fills))
-        .route("/v1/admin/markets/:market_id/settle", post(admin_settle))
-        .route("/ws", get(ws_handler_with_query))
-        .with_state(state);
+    let app = make_app(state);
 
     let addr = SocketAddr::from(([0, 0, 0, 0], 8081));
     info!("gateway listening on {}", addr);
@@ -511,6 +520,71 @@ impl Drop for WsLive {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::http::Request;
+    use http_body_util::BodyExt;
+    use tower::ServiceExt;
+
+    #[tokio::test]
+    async fn get_markets_returns_json_array() {
+        let dir = tempfile::tempdir().unwrap();
+        std::env::set_var("CHRONOS_SEED_DUMMY_TRADES", "0");
+        let catalog = vec![default_primary_market()];
+        let state = init_app_state(dir.path().to_path_buf(), &catalog).unwrap();
+        let app = make_app(state);
+        let res = app
+            .oneshot(
+                Request::builder()
+                    .uri("/v1/markets")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(res.status(), StatusCode::OK);
+        let body = res.into_body().collect().await.unwrap().to_bytes();
+        let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert!(v.is_array());
+        assert!(!v.as_array().unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn post_order_place_gtc() {
+        let dir = tempfile::tempdir().unwrap();
+        std::env::set_var("CHRONOS_SEED_DUMMY_TRADES", "0");
+        let catalog = vec![default_primary_market()];
+        let state = init_app_state(dir.path().to_path_buf(), &catalog).unwrap();
+        let app = make_app(state);
+        let uid = Uuid::new_v4();
+        let payload = serde_json::json!({
+            "market_id": DEFAULT_MARKET,
+            "side": "buy",
+            "price": 45,
+            "qty": 3,
+            "tif": "GTC"
+        });
+        let res = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/v1/orders")
+                    .header("content-type", "application/json")
+                    .header("X-User-Id", uid.to_string())
+                    .body(Body::from(payload.to_string()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(res.status(), StatusCode::OK);
+        let body = res.into_body().collect().await.unwrap().to_bytes();
+        let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(v["status"], "ok");
+        assert_eq!(v["rested"], true);
+    }
+}
+
 async fn handle_ws(app: AppState, mut socket: WebSocket, market_id: String) {
     app.metrics.ws_clients.inc();
     let _live = WsLive(app.metrics.clone());
@@ -534,18 +608,18 @@ async fn handle_ws(app: AppState, mut socket: WebSocket, market_id: String) {
             "last_trade": last
         })
         .to_string();
-        let _ = socket.send(Message::Text(snap)).await;
+        let _ = socket.send(Message::Text(snap.into())).await;
     }
 
     for msg in app.md.snapshot_from_seq(from_seq) {
-        let _ = socket.send(Message::Text(msg)).await;
+        let _ = socket.send(Message::Text(msg.into())).await;
     }
 
     let mut rx = app.md.subscribe();
     loop {
         match rx.recv().await {
             Ok(msg) => {
-                let _ = socket.send(Message::Text(msg)).await;
+                let _ = socket.send(Message::Text(msg.into())).await;
             }
             Err(_) => break,
         }

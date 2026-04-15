@@ -13,12 +13,12 @@ Base URL: `http://localhost:8081` (or gateway service in Docker).
 |--------|------|----------------|----------|
 | `GET` | `/v1/orders` | Query `market_id?` — if set, only that market; else all markets | JSON array of open (resting) orders for the caller (`X-User-Id`): `{ market_id, order_id, side, price, qty }` |
 | `POST` | `/v1/orders` | `{ market_id, side, price, qty, tif, idempotency? }` | `{ fills, status, self_trade_prevented, rested }` — see below |
-| `DELETE` | `/v1/orders/:id` | Query `market_id?` (default `OKC_WIN_YESNO`) | `ok` text |
-| `PUT` | `/v1/orders/:id` | `{ market_id, new_price?, new_qty? }` | `ok` text |
+| `DELETE` | `/v1/orders/{id}` | Query `market_id?` (default `OKC_WIN_YESNO`) | `ok` text |
+| `PUT` | `/v1/orders/{id}` | `{ market_id, new_price?, new_qty? }` | `ok` text |
 | `GET` | `/v1/markets` | — | JSON array per market: fields above plus **`settled`**, and **`stats`**: `{ volume_usd, fill_count, best_bid_cents, best_ask_cents, mid_cents, yes_implied_pct, last_trade_cents }` — book snapshot (live) plus **session** sim volume/fill count from the in-memory ledger (resets on gateway restart; engine/WAL recovery does not rebuild historical fill stats). |
 | `GET` | `/v1/positions` | — | Map `market_id -> { qty_yes, avg_price_cents }` |
 | `GET` | `/v1/fills?limit=50` | — | JSON array of recent fills |
-| `POST` | `/v1/admin/markets/:market_id/settle` | `{ resolve_yes: bool }` | `ok` text |
+| `POST` | `/v1/admin/markets/{market_id}/settle` | `{ resolve_yes: bool }` | `ok` text |
 | `GET` | `/metrics` | — | Prometheus text |
 
 ### `POST /v1/orders` response

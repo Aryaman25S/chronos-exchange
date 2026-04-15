@@ -55,6 +55,59 @@ fn wal_replay_matches_continuous_state_hash() {
 }
 
 #[test]
+fn snapshot_then_tail_wal_replay_matches_single_run() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("data");
+    let h1 = {
+        let e = Engine::new(path.clone()).unwrap();
+        e.ensure_market(mk_m());
+        let a = Uuid::new_v4();
+        let b = Uuid::new_v4();
+        e.place_order(NewOrder {
+            id: Uuid::new_v4(),
+            user_id: a,
+            market_id: "T".into(),
+            side: Side::Sell,
+            price: 50,
+            qty: 10,
+            tif: Tif::Gtc,
+            idempotency: None,
+        })
+        .unwrap();
+        e.place_order(NewOrder {
+            id: Uuid::new_v4(),
+            user_id: b,
+            market_id: "T".into(),
+            side: Side::Buy,
+            price: 50,
+            qty: 4,
+            tif: Tif::Gtc,
+            idempotency: None,
+        })
+        .unwrap();
+        e.snapshot_all().unwrap();
+        e.place_order(NewOrder {
+            id: Uuid::new_v4(),
+            user_id: a,
+            market_id: "T".into(),
+            side: Side::Buy,
+            price: 49,
+            qty: 2,
+            tif: Tif::Gtc,
+            idempotency: None,
+        })
+        .unwrap();
+        e.state_hash().unwrap()
+    };
+
+    let e2 = Engine::new(path).unwrap();
+    e2.ensure_market(mk_m());
+    e2.restore_from_latest().unwrap();
+    let h2 = e2.state_hash().unwrap();
+    assert_eq!(h1, h2, "snapshot + WAL tail should match one continuous run");
+}
+
+#[test]
 fn fok_rejects_when_not_fully_fillable() {
     let mut ob = engine::orderbook::OrderBook::new(mk_m());
     let a = Uuid::new_v4();

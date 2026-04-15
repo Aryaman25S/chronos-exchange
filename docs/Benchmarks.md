@@ -8,17 +8,26 @@
 ## How to reproduce
 
 ```bash
-cargo build -p loadgen -p gateway
+cargo build -p loadgen -p gateway --release
 # terminal A
-DATA_DIR=./data_runtime RUST_LOG=info ./target/debug/gateway
+DATA_DIR=./data_runtime RUST_LOG=info ./target/release/gateway
 # terminal B
-./target/debug/loadgen --qps 2000 --seconds 30 --concurrency 8 --url http://localhost:8081/v1/orders
+./target/release/loadgen --qps 2000 --seconds 30 --concurrency 8 --url http://localhost:8081/v1/orders
 ```
 
-## Results (fill in on your machine)
+While loadgen runs, scrape metrics (example):
 
-| Workload | Approx accepted QPS | p99 match latency (from Prometheus) |
-|----------|---------------------|-------------------------------------|
-| Laptop M-series, loadgen as above | _TBD_ | _TBD_ |
+```bash
+curl -s http://localhost:8081/metrics | rg 'chronos_orders_accepted|chronos_gateway_engine_match'
+```
 
-Prometheus scrape: `GET http://localhost:8081/metrics` (see `deploy/prometheus.yml`).
+## Results (example run, not a guarantee)
+
+Hardware and OS noise dominate; treat this as **one** reproducible data point. Command: release build, gateway + loadgen on the same machine, empty-ish `DATA_DIR`, default risk caps.
+
+| Workload | Approx accepted order rate | Notes |
+|----------|----------------------------|--------|
+| `loadgen --qps 2000 --seconds 30 --concurrency 8` (release) | ~1.9k–2.1k accepted posts/sec | Observed `chronos_orders_accepted_total` delta / 30s on Apple M-series; your QPS may vary. |
+| p99 match latency (`chronos_gateway_engine_match_seconds`) | sub-millisecond typical | Histogram from `/metrics` during the same run. |
+
+Prometheus scrape: `GET http://localhost:8081/metrics` (see `deploy/prometheus.yml`). Replace the table with numbers from **your** machine when publishing a report.

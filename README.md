@@ -39,7 +39,7 @@ docker compose up --build
 
 6. In Grafana, open the Chronos dashboard (if provisioned) for order rate and match latency histogram.
 
-See [docs/Architecture.md](docs/Architecture.md), [docs/APIs.md](docs/APIs.md), [docs/Benchmarks.md](docs/Benchmarks.md).
+See [docs/Architecture.md](docs/Architecture.md), [docs/APIs.md](docs/APIs.md), [docs/OrderFlow.md](docs/OrderFlow.md), [docs/Benchmarks.md](docs/Benchmarks.md). Deployment options: [deploy/README.md](deploy/README.md).
 
 ### Market catalog & env
 

@@ -7,6 +7,9 @@
 # Keep Cargo.lock for binaries/workspaces (DO NOT ignore)
 # (We intentionally do NOT list Cargo.lock here.)
 
+# --- Local tool venvs (e.g. PDF generator) ---
+.venv-pdf/
+
 # --- Node/Vite (UI) ---
 ui/node_modules/
 ui/dist/

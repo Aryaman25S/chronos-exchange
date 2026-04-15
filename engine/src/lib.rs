@@ -118,8 +118,10 @@ impl Engine {
     }
 
     pub fn snapshot_all(&self) -> anyhow::Result<()> {
-        let g = self.inner.lock();
-        g.snap.write_all(&g.markets)?;
+        let mut g = self.inner.lock();
+        g.wal.flush()?;
+        let wal_end = g.wal.len_bytes()?;
+        g.snap.write_all(&g.markets, wal_end)?;
         Ok(())
     }
 
@@ -130,12 +132,13 @@ impl Engine {
 
     pub fn restore_from_latest(&self) -> anyhow::Result<()> {
         let mut g = self.inner.lock();
-        if let Some(state) = g.snap.try_read_latest()? {
+        let mut wal_start = 0u64;
+        if let Some((state, wal_off)) = g.snap.try_read_latest()? {
             g.markets = state;
+            wal_start = wal_off;
         }
-        // Collect WAL records first, then apply them — avoids nested borrows.
         let mut recs = Vec::new();
-        g.wal.replay(|rec| {
+        g.wal.replay_from(wal_start, |rec| {
             recs.push(rec);
             Ok(())
         })?;
@@ -166,7 +169,7 @@ impl Engine {
                 }
             }
         }
-        info!("Restored from snapshot+WAL");
+        info!("Restored from snapshot (WAL replay from byte {})", wal_start);
         Ok(())
     }
 

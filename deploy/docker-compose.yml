@@ -1,5 +1,6 @@
 
 version: "3.8"
+# Postgres is optional; the gateway does not connect to it (engine uses DATA_DIR WAL only).
 services:
   postgres:
     image: postgres:16
