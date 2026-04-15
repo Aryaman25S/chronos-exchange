@@ -4,27 +4,6 @@ The trading path is **gateway + engine** (WAL under `DATA_DIR`); there is **no d
 
 The `postgres` service in `docker-compose.yml` is optional and **not used** by the gateway.
 
-### Fly.io: `Cargo.toml does not contain a valid package section`
-
-The repo root **`Cargo.toml` is a Rust workspace** (only `[workspace]`, no `[package]`). **`fly launch`** scans the directory first and tries to treat it like a single crate, which fails.
-
-**Fix (pick one):**
-
-1. **Point Fly at our Dockerfile** (from the repo root):
-
-   ```bash
-   fly launch --dockerfile deploy/Dockerfile.web
-   ```
-
-2. **Skip `fly launch` and use config + deploy** (recommended; no scanner):
-
-   ```bash
-   cp deploy/fly.toml.example fly.toml
-   # Edit fly.toml: set app = "your-unique-name"
-   fly apps create your-unique-name    # omit if the app already exists
-   fly deploy
-   ```
-
 ---
 
 ## Recommended: single image (nginx + UI + gateway)
@@ -42,23 +21,20 @@ Open **http://localhost:8080** — static UI, API at `/v1`, WebSocket at `/ws`. 
 
 ### Fly.io (step by step)
 
-1. Install the [Fly CLI](https://fly.io/docs/hands-on/install-flyctl/). Sign in when prompted (`fly launch` / `fly deploy` will ask if needed).
-
-2. From the **chronos-exchange repo root**, copy the example config and set a **unique** app name:
+1. Install the [Fly CLI](https://fly.io/docs/hands-on/install-flyctl/) and run `fly auth login`.
+2. From the repo root, copy the example config and choose a **unique** app name:
 
    ```bash
    cp deploy/fly.toml.example fly.toml
    # Edit fly.toml: set app = "your-unique-name"
    ```
 
-3. Create the app (first time only) and deploy:
+3. Create the app (first time) and deploy:
 
    ```bash
-   fly apps create your-unique-name
+   fly launch --no-deploy --copy-config   # if needed, or fly apps create your-unique-name
    fly deploy
    ```
-
-   **Alternative:** `fly launch --dockerfile deploy/Dockerfile.web` (see the note above if bare `fly launch` fails on `Cargo.toml`).
 
 4. **Secrets (optional but recommended for admin settle):**
 

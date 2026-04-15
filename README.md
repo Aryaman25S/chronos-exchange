@@ -17,7 +17,7 @@ docker compose up --build
 - **Prometheus**: http://localhost:9090
 - **Grafana**: http://localhost:3000
 
-**Public deploy (one URL for UI + API):** build `deploy/Dockerfile.web` and run behind Fly.io or any container host — see [deploy/README.md](deploy/README.md) (includes **GitHub Actions → Fly** push-to-deploy).
+**Public deploy (one URL for UI + API):** build `deploy/Dockerfile.web` and run behind Fly.io or any container host — see [deploy/README.md](deploy/README.md).
 
 ## ~90 second demo
 
