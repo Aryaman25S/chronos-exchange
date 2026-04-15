@@ -40,12 +40,7 @@ export function MarketCard({ m }: { m: Market }) {
             )}
           </span>
           <span className="shrink-0 flex items-center gap-2">
-            {settled == null ? (
-              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-emerald-400 font-medium">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" aria-hidden />
-                Sim
-              </span>
-            ) : (
+            {settled != null && (
               <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-amber-200 font-medium">
                 Resolved
               </span>

@@ -11,7 +11,7 @@ export ADMIN_TOKEN=dev   # required for POST /v1/admin/.../settle
 docker compose up --build
 ```
 
-- **UI**: http://localhost:5173 — Vite proxies `/v1` and `/ws` to the gateway. The app uses **React Router** (`/` markets list, `/m/:marketId` trading view), **TanStack Query** for REST, and a Kalshi-style **depth ladder** + **order ticket** + **tape** + **positions/activity** panels.
+- **UI**: http://localhost:5173 — Vite proxies `/v1` and `/ws` to the gateway. The app uses **React Router** (`/` markets list, `/m/:marketId` trading view), **TanStack Query** for REST, and a **depth ladder** + **order ticket** + **tape** + **positions/activity** panels.
 - **Gateway**: http://localhost:8081
 - **Metrics**: http://localhost:8081/metrics
 - **Prometheus**: http://localhost:9090
@@ -44,6 +44,7 @@ See [docs/Architecture.md](docs/Architecture.md), [docs/APIs.md](docs/APIs.md), 
 ### Market catalog & env
 
 - **`MARKETS_SEED`**: path to `markets_seed.json` (see [docs/APIs.md](docs/APIs.md)). Default filename is resolved from the process working directory; Docker image sets `/etc/chronos/markets_seed.json`.
+- **Dummy book & volume (sim)**: On the **first** startup for a given `DATA_DIR`, the gateway places synthetic GTC ladders and IOC crosses per seeded market so list cards show plausible spread, implied %, and session volume. Skip with `CHRONOS_SEED_DUMMY_TRADES=0`. To re-seed later, remove `DATA_DIR/.dummy_trades_seeded` (and usually reset or remove the WAL under that directory so you do not stack duplicate history).
 - **UI**: optional `VITE_WS_URL` in `ui/.env.example` — otherwise the app uses same-origin `/ws` (Vite proxies to the gateway in dev).
 
 ### Future (not on the core roadmap)

@@ -20,6 +20,90 @@
       "tick_size": 1,
       "description": "YES if the FOMC announces a rate cut on or before the May decision window.",
       "tags": ["Macro", "Rates", "Fed"]
+    },
+    {
+      "id": "PRES_ELEC_MARGIN_5",
+      "name": "2028 popular vote margin over 5%",
+      "tick_size": 1,
+      "description": "YES if the winning presidential ticket’s popular-vote margin exceeds five percentage points (sim rules).",
+      "tags": ["Politics", "Elections", "US"]
+    },
+    {
+      "id": "SP500_NEW_HIGH_Q3",
+      "name": "S&P 500 hits new all-time high in Q3",
+      "tick_size": 1,
+      "description": "YES if the S&P 500 index prints a new record closing high during the third calendar quarter.",
+      "tags": ["Equities", "Macro", "Indices"]
+    },
+    {
+      "id": "ETH_ETF_INFLOW_WK",
+      "name": "ETH spot ETF weekly net inflows positive",
+      "tick_size": 1,
+      "description": "YES if aggregate reported net inflows for ETH spot ETFs are positive for the settlement week.",
+      "tags": ["Crypto", "ETH", "ETF"]
+    },
+    {
+      "id": "OIL_WTI_80",
+      "name": "WTI crude finishes week above $80",
+      "tick_size": 1,
+      "description": "YES if front-month WTI settles above $80/bbl on the Friday reference print.",
+      "tags": ["Commodities", "Oil", "Energy"]
+    },
+    {
+      "id": "NFL_DIV_CHAMP_NFC_E",
+      "name": "NFC East division winner",
+      "tick_size": 1,
+      "description": "Resolves YES for the franchise that wins the NFC East (play-money; not affiliated with the NFL).",
+      "tags": ["NFL", "Football", "Sports"]
+    },
+    {
+      "id": "MLB_CY_YOUNG_AL",
+      "name": "AL Cy Young: pitcher X finishes top 3",
+      "tick_size": 1,
+      "description": "YES if the named starter receives Cy Young vote share placing them in the top three (sim criteria).",
+      "tags": ["MLB", "Baseball", "Awards"]
+    },
+    {
+      "id": "UEFA_UCL_FINAL_EXTRA",
+      "name": "Champions League final goes to extra time",
+      "tick_size": 1,
+      "description": "YES if the final is tied after 90 minutes and proceeds to extra time or penalties.",
+      "tags": ["Soccer", "UEFA", "Sports"]
+    },
+    {
+      "id": "CPI_YOY_UNDER_3",
+      "name": "US CPI year-over-year below 3%",
+      "tick_size": 1,
+      "description": "YES if the reported headline CPI year-over-year change is strictly below 3% for the release month.",
+      "tags": ["Macro", "Inflation", "Data"]
+    },
+    {
+      "id": "AI_MODEL_BENCH_TOP",
+      "name": "Frontier model leads public benchmark",
+      "tick_size": 1,
+      "description": "YES if the designated model ranks #1 on the reference public leaderboard on the snapshot date.",
+      "tags": ["Tech", "AI", "Science"]
+    },
+    {
+      "id": "OSCARS_BEST_PIC_GENRE",
+      "name": "Best Picture winner is a drama",
+      "tick_size": 1,
+      "description": "YES if the Academy Award for Best Picture goes to a film classified as drama under sim rules.",
+      "tags": ["Culture", "Film", "Awards"]
+    },
+    {
+      "id": "HURR_CAT3_FL",
+      "name": "Category 3+ hurricane makes Florida landfall",
+      "tick_size": 1,
+      "description": "YES if a named Atlantic hurricane at Cat 3+ intensity makes landfall in Florida this season.",
+      "tags": ["Climate", "Weather", "US"]
+    },
+    {
+      "id": "STARSHIP_ORBIT_OK",
+      "name": "Starship completes orbital test objectives",
+      "tick_size": 1,
+      "description": "YES if the referenced flight meets published mission success criteria (sim; not affiliated with operators).",
+      "tags": ["Space", "Tech", "Science"]
     }
   ]
 }

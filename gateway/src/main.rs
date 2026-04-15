@@ -1,3 +1,4 @@
+mod dummy_seed;
 mod ledger;
 mod metrics;
 
@@ -80,7 +81,7 @@ struct AppState {
     metrics: Arc<Metrics>,
 }
 
-fn emit_book_update(state: &AppState, market_id: &str, trade_hint: Option<(u32, u32)>) {
+pub(crate) fn emit_book_update(state: &AppState, market_id: &str, trade_hint: Option<(u32, u32)>) {
     let Some((l2, last_px, seq)) = state.engine.get_market_snapshot(market_id, 50) else {
         return;
     };
@@ -113,9 +114,10 @@ async fn main() -> anyhow::Result<()> {
         .init();
 
     let data_dir = std::env::var("DATA_DIR").unwrap_or_else(|_| "./data_runtime".into());
+    let catalog = load_markets_seed();
     let engine = Engine::new(PathBuf::from(&data_dir))?;
-    for m in load_markets_seed() {
-        engine.ensure_market(m);
+    for m in &catalog {
+        engine.ensure_market(m.clone());
     }
     engine.restore_from_latest()?;
 
@@ -150,6 +152,9 @@ async fn main() -> anyhow::Result<()> {
         md,
         metrics,
     };
+
+    let market_ids: Vec<String> = catalog.iter().map(|m| m.id.clone()).collect();
+    dummy_seed::maybe_seed_dummy_trades(&state, std::path::Path::new(&data_dir), &market_ids)?;
 
     let app = Router::new()
         .route("/metrics", get(metrics_handler))

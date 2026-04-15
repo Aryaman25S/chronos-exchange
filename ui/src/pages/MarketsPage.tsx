@@ -1,13 +1,24 @@
 import { useQuery } from '@tanstack/react-query'
-import { Loader2 } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import { marketsQueryOptions } from '@/api/queries'
 import { MarketCard } from '@/components/MarketCard'
+
+const topicPill =
+  'shrink-0 rounded-full border px-2.5 py-0.5 text-xs transition-colors whitespace-nowrap'
 
 export function MarketsPage() {
   const { data, isLoading, error } = useQuery(marketsQueryOptions())
   const [q, setQ] = useState('')
   const [tag, setTag] = useState<string | null>(null)
+  const topicsScrollRef = useRef<HTMLDivElement>(null)
+
+  const scrollTopics = useCallback((dir: 'left' | 'right') => {
+    const el = topicsScrollRef.current
+    if (!el) return
+    const delta = dir === 'right' ? 280 : -280
+    el.scrollBy({ left: delta, behavior: 'smooth' })
+  }, [])
 
   const allTags = useMemo(() => {
     const s = new Set<string>()
@@ -41,14 +52,14 @@ export function MarketsPage() {
           Browse markets
         </h1>
         <p className="text-slate-400 max-w-2xl text-sm sm:text-base">
-          Play-money binary contracts — prices imply event probability. Volume and odds update from
+          In play-money binary contracts, prices imply event probability. Volume and odds update from
           the simulator&apos;s order book and trade history.
         </p>
       </div>
 
       {!isLoading && !error && (data?.length ?? 0) > 0 && (
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:flex-wrap">
-          <label className="flex flex-col gap-1 text-xs text-slate-500 max-w-md flex-1 min-w-[200px]">
+        <div className="flex flex-col gap-4 max-w-full min-w-0">
+          <label className="flex flex-col gap-1 text-xs text-slate-500 max-w-xl w-full">
             Search
             <input
               type="search"
@@ -59,33 +70,56 @@ export function MarketsPage() {
             />
           </label>
           {allTags.length > 0 && (
-            <div className="flex flex-wrap gap-2 items-center">
-              <span className="text-xs text-slate-500">Topics</span>
-              <button
-                type="button"
-                onClick={() => setTag(null)}
-                className={`rounded-full border px-2.5 py-0.5 text-xs ${
-                  tag === null
-                    ? 'border-accent text-accent'
-                    : 'border-slate-600 text-slate-400 hover:border-slate-500'
-                }`}
-              >
-                All
-              </button>
-              {allTags.map((t) => (
+            <div className="min-w-0">
+              <div className="text-xs text-slate-500 mb-1.5">Topics</div>
+              <div className="relative flex items-stretch gap-1 min-w-0">
                 <button
-                  key={t}
                   type="button"
-                  onClick={() => setTag(t === tag ? null : t)}
-                  className={`rounded-full border px-2.5 py-0.5 text-xs ${
-                    tag === t
-                      ? 'border-accent text-accent'
-                      : 'border-slate-600 text-slate-400 hover:border-slate-500'
-                  }`}
+                  aria-label="Scroll topics left"
+                  onClick={() => scrollTopics('left')}
+                  className="hidden sm:flex shrink-0 items-center justify-center rounded-lg border border-slate-700 bg-slate-900/80 px-1.5 text-slate-400 hover:bg-slate-800 hover:text-slate-200"
                 >
-                  {t}
+                  <ChevronLeft className="h-4 w-4" aria-hidden />
                 </button>
-              ))}
+                <div
+                  ref={topicsScrollRef}
+                  className="flex min-w-0 flex-1 flex-nowrap gap-2 overflow-x-auto scroll-smooth py-0.5 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+                >
+                  <button
+                    type="button"
+                    onClick={() => setTag(null)}
+                    className={`${topicPill} ${
+                      tag === null
+                        ? 'border-accent text-accent'
+                        : 'border-slate-600 text-slate-400 hover:border-slate-500'
+                    }`}
+                  >
+                    All
+                  </button>
+                  {allTags.map((t) => (
+                    <button
+                      key={t}
+                      type="button"
+                      onClick={() => setTag(t === tag ? null : t)}
+                      className={`${topicPill} ${
+                        tag === t
+                          ? 'border-accent text-accent'
+                          : 'border-slate-600 text-slate-400 hover:border-slate-500'
+                      }`}
+                    >
+                      {t}
+                    </button>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  aria-label="Scroll topics right"
+                  onClick={() => scrollTopics('right')}
+                  className="flex shrink-0 items-center justify-center rounded-lg border border-slate-700 bg-slate-900/80 px-1.5 text-slate-400 hover:bg-slate-800 hover:text-slate-200"
+                >
+                  <ChevronRight className="h-4 w-4" aria-hidden />
+                </button>
+              </div>
             </div>
           )}
         </div>
